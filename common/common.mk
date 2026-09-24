@@ -80,7 +80,9 @@ ifeq ($(TARGET),bios)
         override CFLAGS_FOR_TARGET += \
             -mstack-protector-guard=global
     endif
+    # The entire BIOS image must leave conventional RAM for BIOS I/O.
     override CFLAGS_FOR_TARGET += \
+        -Os \
         -fno-PIC \
         -m32 \
         -march=i686 \
@@ -328,11 +330,6 @@ ifeq ($(TARGET),uefi-loongarch64)
 endif
 
 include ui/freetype/sources.mk
-ifeq ($(TARGET),bios)
-    # Configuration and composition must leave conventional RAM for BIOS I/O.
-    $(call MKESCAPE,$(BUILDDIR))/common/ui/config.o $(call MKESCAPE,$(BUILDDIR))/common/menu_gui.o $(call MKESCAPE,$(BUILDDIR))/common/ui/support.o: override CFLAGS_FOR_TARGET += -Os
-    $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CFLAGS_FOR_TARGET += -Os
-endif
 $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CPPFLAGS_FOR_TARGET += -DFT2_BUILD_LIBRARY
 $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CFLAGS_FOR_TARGET += -Wno-unused-variable
 override OBJ_REL += $(FREETYPE_SOURCES:.c=.o)
