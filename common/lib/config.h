@@ -26,6 +26,7 @@ struct conf_tuple {
 extern struct menu_entry *menu_tree;
 
 int init_config_disk(struct volume *part);
+const char *config_get_path(void);
 bool init_config_smbios(void);
 int init_config(size_t config_size);
 

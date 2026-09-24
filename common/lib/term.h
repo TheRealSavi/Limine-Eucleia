@@ -53,6 +53,9 @@ static inline void set_cursor_pos_helper(size_t x, size_t y) {
     print("\e[%u;%uH", (int)y + 1, (int)x + 1);
 }
 
+// buf must hold at least 24 bytes.
+void term_format_fg_rgb_escape(char *buf, uint32_t rgb);
+
 void term_notready(void);
 void term_fallback(void);
 #if defined (UEFI)

@@ -27,6 +27,7 @@
 /picoefi
 /freestanding-c-hdrs
 /flanterm
+/freetype
 /stbi-hardened
 /common/lib/stb_image.h
 /common/cc-runtime.s2.c
@@ -62,7 +63,11 @@
 
 
 # For local development
-/.vscode
+/work/
+__pycache__/
+*.pyc
+/.vscode/*
+!/.vscode/c_cpp_properties.json
 /.gdb_history
 /tags
 /TAGS
@@ -73,3 +78,8 @@ compile_commands.json
 # clangd caches
 /.clangd
 /.cache/clangd
+
+# Historical design workspace; never part of release sources
+/Concepts/
+/eucleia/
+/dist/

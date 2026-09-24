@@ -1,0 +1,71 @@
+{
+    "env": {
+        "bootloaderIncludes": [
+            "${workspaceFolder}/common",
+            "${workspaceFolder}/common/libc-compat",
+            "${workspaceFolder}/limine-protocol/include",
+            "${workspaceFolder}/flanterm/src",
+            "${workspaceFolder}/common/ui/freetype",
+            "${workspaceFolder}/freetype/include",
+            "${workspaceFolder}/libfdt/src",
+            "${workspaceFolder}/freestanding-c-hdrs/include"
+        ],
+        "bootloaderDefines": [
+            "COM_OUTPUT=false",
+            "E9_OUTPUT=false",
+            "FLANTERM_IN_FLANTERM"
+        ]
+    },
+    "configurations": [
+        {
+            "name": "UEFI x86-64",
+            "compileCommands": ["${workspaceFolder}/compile_commands.json"],
+            "compilerPath": "clang",
+            "compilerArgs": [
+                "--target=x86_64-unknown-none-elf",
+                "-nostdinc",
+                "-ffreestanding",
+                "-fshort-wchar"
+            ],
+            "intelliSenseMode": "linux-clang-x64",
+            "includePath": [
+                "${workspaceFolder}/picoefi/inc",
+                "${bootloaderIncludes}",
+                "${workspaceFolder}/work/build"
+            ],
+            "defines": ["UEFI", "${bootloaderDefines}"],
+            "cStandard": "gnu11"
+        },
+        {
+            "name": "BIOS i686",
+            "compilerPath": "clang",
+            "compilerArgs": [
+                "--target=i686-unknown-none-elf",
+                "-nostdinc",
+                "-ffreestanding"
+            ],
+            "intelliSenseMode": "linux-clang-x86",
+            "includePath": [
+                "${bootloaderIncludes}",
+                "${workspaceFolder}/work/menu-refactor/build-bios"
+            ],
+            "defines": ["BIOS", "${bootloaderDefines}"],
+            "cStandard": "gnu11"
+        },
+        {
+            "name": "Host tests",
+            "compilerPath": "gcc",
+            "compilerArgs": ["-ffreestanding"],
+            "intelliSenseMode": "linux-gcc-x64",
+            "includePath": [
+                "${workspaceFolder}/common",
+                "${workspaceFolder}/flanterm/src",
+                "${workspaceFolder}/common/ui/freetype",
+                "${workspaceFolder}/freetype/include"
+            ],
+            "defines": ["BIOS", "${bootloaderDefines}"],
+            "cStandard": "gnu11"
+        }
+    ],
+    "version": 4
+}

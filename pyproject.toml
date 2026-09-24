@@ -1,0 +1,20 @@
+[tool.pyright]
+include = ["dev.py", "tools", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.9"
+stubPath = "typings"
+executionEnvironments = [{ root = "tests/ui" }, { root = "." }]
+
+[tool.mypy]
+files = ["dev.py", "tools", "tests"]
+mypy_path = "$MYPY_CONFIG_FILE_DIR/typings"
+check_untyped_defs = true
+
+[tool.ruff]
+include = ["dev.py", "tools/**/*.py", "tests/**/*.py", "typings/**/*.pyi", "pyproject.toml"]
+
+[tool.ruff.lint]
+extend-select = ["I", "PLW1510", "EXE001", "C408", "SIM117"]
+
+[tool.rumdl]
+disable = ["MD013"]

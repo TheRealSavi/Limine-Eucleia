@@ -1,7 +1,7 @@
-# Build and Install Instructions
+# Build and Install Limine-Eucleia
 
-> **NOTE:** This document is about building and installing Limine.
-> For information about deployment for usage, see [USAGE.md](USAGE.md).
+For theme deployment, see [the deployment guide](docs/DEPLOYMENT.md).
+The inherited firmware installation instructions are in [USAGE.md](USAGE.md).
 
 ## Prerequisites
 
@@ -14,9 +14,8 @@ the respective binutils.
 
 ## Configure
 
-If using a release tarball (recommended, see
-https://github.com/Limine-Bootloader/Limine/releases), run `./configure`
-directly.
+If using a Limine-Eucleia source archive, run `./configure` directly.
+Upstream Limine archives do not include Eucleia's graphical menu.
 
 If checking out from the repository, run `./bootstrap` first in order to
 download the necessary [dependencies](3RDPARTY.md) and generate the configure
@@ -36,6 +35,7 @@ script from the directory you wish to execute the build in. The following
 ## Building
 
 To build Limine, run:
+
 ```bash
 make    # (or gmake where applicable)
 ```
@@ -46,6 +46,20 @@ This step will install Limine files to `share` and `bin` directories in the
 specified prefix (default is `/usr/local`, see `./configure --help`).
 
 To install Limine, run:
+
 ```bash
 make install    # (or gmake where applicable)
 ```
+
+## Eucleia theme and release packages
+
+The graphical menu requires a theme pack and `eucleia.conf`. Build the curated
+pack with `make theme` (Python 3, Pillow and FontTools required), or use the
+pack from an Eucleia binary release. `make dist-binary` includes it together
+with firmware, configuration and required notices. The loader build itself
+does not require Python or the original design workspace.
+
+`make install` installs firmware, the host tool and documentation into the
+configured prefix; it does not enable the GUI or deploy a theme to an EFI
+partition. See [deployment](docs/DEPLOYMENT.md) and
+[release preparation](docs/RELEASE.md).

@@ -16,8 +16,17 @@
 #endif
 
 static bool mouse_active = false;
+static size_t canvas_width, canvas_height;
 
-// Pointer position is in the resolution of 1/256th of a terminal cell. The
+static size_t input_width(void) {
+    return canvas_width != 0 ? canvas_width : terms[0]->cols;
+}
+
+static size_t input_height(void) {
+    return canvas_height != 0 ? canvas_height : terms[0]->rows;
+}
+
+// Pointer position is in 1/256ths of the active coordinate unit. The
 // position and visibility survive the menu data rewind so that the pointer does not
 // jump.
 static no_unwind int64_t pos_x, pos_y;
@@ -34,11 +43,12 @@ static bool left_down, right_down;
 // boot from being replayed once the menu is re-entered.
 static bool seen_released;
 static bool press_seen;
-static size_t press_row;
+static size_t press_x, press_y;
 
 static bool moved_pending;
 static bool click_pending;
 static size_t click_cell_x, click_cell_y;
+static size_t click_press_x, click_press_y;
 static int wheel_pending;
 
 static void reset_transient_state(void) {
@@ -50,8 +60,8 @@ static void reset_transient_state(void) {
 }
 
 static void clamp_pointer(void) {
-    int64_t max_x = (int64_t)terms[0]->cols * 256 - 1;
-    int64_t max_y = (int64_t)terms[0]->rows * 256 - 1;
+    int64_t max_x = (int64_t)input_width() * 256 - 1;
+    int64_t max_y = (int64_t)input_height() * 256 - 1;
 
     if (pos_x < 0) {
         pos_x = 0;
@@ -74,8 +84,8 @@ static void place_pointer(void) {
         return;
     }
     pointer_pos_valid = true;
-    pos_x = (int64_t)(terms[0]->cols / 2) * 256;
-    pos_y = (int64_t)(terms[0]->rows / 2) * 256;
+    pos_x = (int64_t)(input_width() / 2) * 256;
+    pos_y = (int64_t)(input_height() / 2) * 256;
 }
 
 static int move_by(int64_t dx, int64_t dy) {
@@ -106,13 +116,16 @@ static int update_buttons(bool left, bool right) {
         if (left) {
             if (seen_released) {
                 press_seen = true;
-                press_row = pos_y >> 8;
+                press_x = pos_x >> 8;
+                press_y = pos_y >> 8;
             }
         } else {
-            if (press_seen && press_row == (size_t)(pos_y >> 8)) {
+            if (press_seen && (canvas_width != 0 || press_y == (size_t)(pos_y >> 8))) {
                 click_pending = true;
                 click_cell_x = pos_x >> 8;
                 click_cell_y = pos_y >> 8;
+                click_press_x = press_x;
+                click_press_y = press_y;
             }
             press_seen = false;
         }
@@ -161,10 +174,37 @@ void mouse_get_state(struct mouse_state *state) {
     state->click = click_pending;
     state->click_x = click_cell_x;
     state->click_y = click_cell_y;
+    state->press_x = click_press_x;
+    state->press_y = click_press_y;
 
     wheel_pending = 0;
     moved_pending = false;
     click_pending = false;
+}
+
+void mouse_set_canvas(size_t width, size_t height) {
+    if ((width == 0) != (height == 0) || width > 4096 || height > 4096) {
+        return;
+    }
+    if (terms_i == 0 || (width == canvas_width && height == canvas_height)) {
+        return;
+    }
+    mouse_erase_pointer();
+    size_t old_width = input_width(), old_height = input_height();
+    canvas_width = width;
+    canvas_height = height;
+    if (pointer_pos_valid && old_width != 0 && old_height != 0) {
+        pos_x = pos_x * input_width() / old_width;
+        pos_y = pos_y * input_height() / old_height;
+        clamp_pointer();
+    }
+    mouse_flush();
+}
+
+void mouse_get_position(size_t *x, size_t *y, bool *visible) {
+    *x = pos_x >> 8;
+    *y = pos_y >> 8;
+    *visible = mouse_active && pointer_shown;
 }
 
 // Exported from the Enlightenment E16 BlueSteel theme cursor.
@@ -382,7 +422,7 @@ void mouse_erase_pointer(void) {
 }
 
 static void render_pointer(bool sprites_only) {
-    if (!mouse_active || !pointer_shown) {
+    if (!mouse_active || !pointer_shown || canvas_width != 0) {
         return;
     }
     for (size_t i = 0; i < backings_count && i < terms_i; i++) {
@@ -417,8 +457,8 @@ void mouse_render_pointer_overlay(void) {
 
 // Default PS/2 resolution is 4 counts/mm; use 8 counts (2mm) per cell
 // horizontally and 16 counts (4mm) vertically.
-#define COUNTS_TO_FIXED_X(d) ((int64_t)(d) * 256 / 8)
-#define COUNTS_TO_FIXED_Y(d) ((int64_t)(d) * 256 / 16)
+#define COUNTS_TO_FIXED_X(d) ((int64_t)(d) * 256 / (canvas_width != 0 ? 1 : 8))
+#define COUNTS_TO_FIXED_Y(d) ((int64_t)(d) * 256 / (canvas_height != 0 ? 1 : 16))
 
 static bool wheel_packets;
 static uint8_t packet[4];
@@ -807,10 +847,10 @@ static int set_absolute_position(EFI_ABSOLUTE_POINTER_MODE *mode,
     }
 
     int64_t new_x = (int64_t)((state->CurrentX - mode->AbsoluteMinX)
-                  * ((uint64_t)terms[0]->cols * 256)
+                  * ((uint64_t)input_width() * 256)
                   / (mode->AbsoluteMaxX - mode->AbsoluteMinX));
     int64_t new_y = (int64_t)((state->CurrentY - mode->AbsoluteMinY)
-                  * ((uint64_t)terms[0]->rows * 256)
+                  * ((uint64_t)input_height() * 256)
                   / (mode->AbsoluteMaxY - mode->AbsoluteMinY));
 
     return move_by(new_x - pos_x, new_y - pos_y);
@@ -835,8 +875,13 @@ int mouse_handle_efi_event(size_t index) {
         } else {
             int64_t res_x = p->Mode->ResolutionX != 0 ? p->Mode->ResolutionX : 4;
             int64_t res_y = p->Mode->ResolutionY != 0 ? p->Mode->ResolutionY : 4;
-            ev |= move_by((int64_t)state.RelativeMovementX * 256 / (res_x * MM_PER_CELL_X),
-                          (int64_t)state.RelativeMovementY * 256 / (res_y * MM_PER_CELL_Y));
+            if (canvas_width != 0) {
+                ev |= move_by((int64_t)state.RelativeMovementX * 1024 / res_x,
+                    (int64_t)state.RelativeMovementY * 1024 / res_y);
+            } else {
+                ev |= move_by((int64_t)state.RelativeMovementX * 256 / (res_x * MM_PER_CELL_X),
+                    (int64_t)state.RelativeMovementY * 256 / (res_y * MM_PER_CELL_Y));
+            }
 
             if (p->Mode->ResolutionZ != 0 && state.RelativeMovementZ != 0) {
                 int steps = state.RelativeMovementZ / (int64_t)p->Mode->ResolutionZ;

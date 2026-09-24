@@ -65,6 +65,33 @@ void term_notready(void) {
     term_backend = _NOT_READY;
 }
 
+static char *write_uint8_dec(char *p, uint8_t v) {
+    if (v >= 100) {
+        *p++ = '0' + v / 100;
+        *p++ = '0' + (v / 10) % 10;
+        *p++ = '0' + v % 10;
+    } else if (v >= 10) {
+        *p++ = '0' + v / 10;
+        *p++ = '0' + v % 10;
+    } else {
+        *p++ = '0' + v;
+    }
+    return p;
+}
+
+void term_format_fg_rgb_escape(char *buf, uint32_t rgb) {
+    char *p = buf;
+    *p++ = '\e'; *p++ = '['; *p++ = '3'; *p++ = '8'; *p++ = ';';
+    *p++ = '2'; *p++ = ';';
+    p = write_uint8_dec(p, (rgb >> 16) & 0xff);
+    *p++ = ';';
+    p = write_uint8_dec(p, (rgb >> 8) & 0xff);
+    *p++ = ';';
+    p = write_uint8_dec(p, rgb & 0xff);
+    *p++ = 'm';
+    *p = '\0';
+}
+
 // --- fallback ---
 
 #if defined (BIOS)

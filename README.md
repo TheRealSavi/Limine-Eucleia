@@ -1,95 +1,87 @@
-# Limine [![Matrix Server](https://img.shields.io/matrix/limine:matrix.org?color=000000&label=Matrix&logo=matrix)](https://matrix.to/#/#limine:matrix.org)
+# Limine-Eucleia
 
-<p align="center">
-    <img src="https://github.com/Limine-Bootloader/Limine/blob/trunk/logo.png?raw=true" alt="Limine's logo"/>
-</p>
+Limine-Eucleia is a graphical boot-menu fork of Limine, based on upstream
+v12.9.0. It adds configurable layout, native FreeType text, PNG headers, icons and
+wallpaper while retaining Limine's boot protocols and terminal fallback.
 
-### What is Limine?
+![Classical theme running in QEMU](docs/images/classical.png)
 
-Limine (pronounced as demonstrated [here](https://www.merriam-webster.com/dictionary/in%20limine))
-is a modern, secure, portable, multiprotocol bootloader and boot manager, also used
-as the reference implementation for the [Limine boot protocol](https://github.com/Limine-Bootloader/limine-protocol/blob/trunk/PROTOCOL.md).
+The included [Classical theme](themes/classical/README.md) is a complete example
+with a coastal statue wallpaper, ivory typography, bronze selection treatment,
+32 boot icons and matching sample configuration. The screenshot shows the
+isolated demonstration guest; its operating-system labels boot test payloads.
 
-### Community, Support, and Donations
+`limine.conf` owns boot entries and behaviour. A companion `eucleia.conf` owns
+the graphical appearance. See the [configuration reference](docs/CONFIGURATION.md),
+[deployment guide](docs/DEPLOYMENT.md) and [compatibility notes](docs/COMPATIBILITY.md).
+Layout, typography, artwork, cursor and keyboard hints are configured in text.
 
-#### Donate
-If you want to support the work I ([@mintsuki](https://github.com/Mintsuki)) do on Limine, feel free to donate to me on Liberapay:
-<p><a href="https://liberapay.com/mintsuki/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></p>
+## Apply the example theme
 
-Donations welcome, but absolutely not mandatory!
+Build a binary package below, then follow the [deployment guide](docs/DEPLOYMENT.md).
+Keep your working boot entries and place the theme's `eucleia.conf`, `components/`
+and `icons/` beside your loaded `limine.conf`. Copy the compiled pack to
+`/boot/eucleia.eui` on the boot volume. Match the icon selectors to your entry
+names; the [icon reference](themes/classical/icons/README.md) has assignments
+for common systems and tools.
 
-#### Community
-We have a Matrix room at [`#limine:matrix.org`](https://matrix.to/#/#limine:matrix.org) if you need support, info, or you just want to hang out with us.
+For a new configuration, adapt [the example boot entries](themes/classical/limine.conf)
+to your root UUID and file paths. The binary package names this template
+`theme/limine.conf.example` to keep it separate from a working configuration.
 
-### Limine's boot menu
+## Build
 
-![Reference screenshot](screenshot.png?raw=true "Reference screenshot")
+A Git checkout needs `./bootstrap` to fetch pinned dependencies and generate
+`configure`. A source release includes them and builds without that step.
+See [INSTALL.md](INSTALL.md) for toolchain requirements and all firmware targets.
 
-[Photo by Levent Simsek](https://www.pexels.com/photo/brown-tabby-cat-in-close-up-photography-3617160/)
+```sh
+./bootstrap                         # Git checkout only
+mkdir -p build
+cd build
+../configure --enable-uefi-x86-64 --disable-bios --disable-uefi-cd
+make -j4
+make theme                          # Python 3, Pillow and FontTools
+make dist-binary                    # Firmware, portable host tool, theme and notices
+```
 
-### Supported architectures
-* IA-32 (32-bit x86)
-* x86-64
-* aarch64 (arm64)
-* riscv64
-* loongarch64
+`make dist` creates the source archive using an explicit release manifest.
+It includes the current working source, including new implementation files.
+It excludes local experiments, VM disks, logs and Git history. Packaging is
+local; it does not publish or install anything. See [release preparation](docs/RELEASE.md).
 
-### Supported boot protocols
-* Linux
-* [Limine](https://github.com/Limine-Bootloader/limine-protocol/blob/trunk/PROTOCOL.md)
-* Multiboot 1
-* Multiboot 2
-* Chainloading
+## Develop in QEMU
 
-### Supported partitioning schemes
-* MBR
-* GPT
-* Unpartitioned media
+```sh
+./dev run
+./dev restart --no-build
+./dev restart --no-build --ui examples/minimal.conf
+./dev stop
+```
 
-### Supported filesystems
-* FAT12/16/32
-* ISO9660 (CDs/DVDs)
+The launcher uses private storage under `work/` and never attaches host disks.
+See [development](docs/DEVELOPMENT.md) and [tests](tests/ui/README.md).
 
-If your filesystem isn't listed here, please read [the FAQ](FAQ.md) first, especially before
-opening issues or pull requests related to this.
+## Source layout
 
-### Minimum system requirements
-For 32-bit x86 systems, support is only ensured starting with those with
-Pentium Pro (i686) class CPUs.
+| Directory | Contents |
+| --- | --- |
+| `common/` | Bootloader, menu controller, terminal and graphical renderers |
+| `common/ui/` | Configuration, image composition, display and font support |
+| `themes/classical/` | Example theme assets, fonts, configuration and notices |
+| `examples/` | Alternative UI configuration and isolated VM boot entries |
+| `tools/` | Theme compiler, release packaging and existing build utilities |
+| `tests/ui/` | Host checks and isolated firmware integration tests |
+| `docs/` | Supported configuration, architecture, compatibility and workflows |
+| `packaging/` | Explicit source-release inputs |
 
-All x86-64, aarch64, riscv64 and loongarch64 (UEFI) systems are supported.
+## Upstream and licensing
 
-## Packaging status
+Limine-Eucleia retains Limine's BSD-2-Clause licence; see [COPYING](COPYING) and
+[AUTHORS.md](AUTHORS.md). Third-party dependencies have their own notices in
+[3RDPARTY.md](3RDPARTY.md). The default fonts include their SIL Open Font Licences.
+Theme provenance is documented in [themes/classical/README.md](themes/classical/README.md).
 
-All Limine releases since 7.x use [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for their naming.
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/limine.svg?columns=3)](https://repology.org/project/limine/versions)
-
-## Binary releases
-
-For convenience, for point releases, binaries are distributed. These binaries
-are shipped as assets as part of the
-[Limine GitHub releases](https://github.com/Limine-Bootloader/Limine/releases)
-(see the `limine-binary-*` files).
-
-The `limine` host tool is shipped in highly portable source form as part of the
-binary release package. For most/all UNIX-like OSes, in order to rebuild it,
-simply run `make` in the unpacked binary release directory. Alternatively, it
-can be built stand-alone using any C99 compatible compiler.
-
-`limine` host tool binaries for x86 Windows are provided as part of the binary
-release package.
-
-## Build and Install Instructions
-
-*The following steps are not necessary if using a binary release.*
-
-See [INSTALL.md](INSTALL.md).
-
-## Usage
-
-See [USAGE.md](USAGE.md).
-
-## 3rd Party Software Acknowledgments
-
-See [3RDPARTY.md](3RDPARTY.md).
+Upstream references: [Limine](https://github.com/limine-bootloader/limine),
+[boot configuration](CONFIG.md), [usage](USAGE.md), [FAQ](FAQ.md).
+This fork's release archives are distinct from upstream Limine releases.

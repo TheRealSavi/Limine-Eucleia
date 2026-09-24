@@ -112,6 +112,9 @@ SECTIONS
         bss_end = .;
     } :data_s3
 
+    /* Leave conventional RAM for the disk transfer buffer and BIOS data. */
+    ASSERT(bss_end <= 0x96000, "BIOS image leaves insufficient conventional memory")
+
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)

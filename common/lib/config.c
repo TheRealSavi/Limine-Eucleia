@@ -27,6 +27,11 @@ bool config_ready = false;
 no_unwind bool bad_config = false;
 
 static char *config_addr;
+static char *config_path;
+
+const char *config_get_path(void) {
+    return config_path;
+}
 
 #if defined (UEFI)
 // Snapshot of the on-disk config bytes, kept across the in-place mutations
@@ -116,6 +121,7 @@ found:
 #endif
 
 int init_config_disk(struct volume *part) {
+    config_path = NULL;
 #if defined (UEFI)
     bool use_default_efi_search_path = false;
 
@@ -161,6 +167,8 @@ opened:
     config_addr = ext_mem_alloc(config_size);
 
     fread(f, config_addr, 0, f->size);
+
+    config_path = strdup(f->path);
 
     fclose(f);
 

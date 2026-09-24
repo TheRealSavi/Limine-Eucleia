@@ -42,6 +42,8 @@ override CPPFLAGS_FOR_TARGET := \
     -I libc-compat \
     -I ../limine-protocol/include \
     -I ../flanterm/src \
+    -I ui/freetype \
+    -I ../freetype/include \
     -I ../libfdt/src \
     -I '$(call SHESCAPE,$(BUILDDIR))/..' \
     -isystem ../freestanding-c-hdrs/include \
@@ -325,6 +327,15 @@ ifeq ($(TARGET),uefi-loongarch64)
     override OBJ_REL := $(C_FILES:.c=.o) $(S_FILES:.S=.o) $(ASM64_FILES:.asm_loongarch64=.o) $(ASM64U_FILES:.asm_uefi_loongarch64=.o)
 endif
 
+include ui/freetype/sources.mk
+ifeq ($(TARGET),bios)
+    # Configuration and composition must leave conventional RAM for BIOS I/O.
+    $(call MKESCAPE,$(BUILDDIR))/common/ui/config.o $(call MKESCAPE,$(BUILDDIR))/common/menu_gui.o $(call MKESCAPE,$(BUILDDIR))/common/ui/support.o: override CFLAGS_FOR_TARGET += -Os
+    $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CFLAGS_FOR_TARGET += -Os
+endif
+$(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CPPFLAGS_FOR_TARGET += -DFT2_BUILD_LIBRARY
+$(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(FREETYPE_SOURCES:.c=.o)): override CFLAGS_FOR_TARGET += -Wno-unused-variable
+override OBJ_REL += $(FREETYPE_SOURCES:.c=.o)
 override OBJ := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(OBJ_REL))
 override OBJ_S2 := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(filter %.s2.o,$(OBJ_REL)))
 override HEADER_DEPS := $(addprefix $(call MKESCAPE,$(BUILDDIR))/, $(OBJ_REL:.o=.d))

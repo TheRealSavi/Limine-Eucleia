@@ -134,10 +134,14 @@ install: all
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/COPYING' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/LICENSES/LicenseRef-scancode-bsd-no-disclaimer-unmodified.txt' '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES/'
+	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/freetype/docs/FTL.TXT' '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES/'
+	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/LICENSES/FreeType-third-party.txt' '$(call SHESCAPE,$(DESTDIR)$(docdir))/LICENSES/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/3RDPARTY.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/CONFIG.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/FAQ.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/USAGE.md' '$(call SHESCAPE,$(DESTDIR)$(docdir))/'
+	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(docdir))/docs'
+	$(INSTALL_DATA) '$(call SHESCAPE,$(SRCDIR))/docs/'*.md '$(call SHESCAPE,$(DESTDIR)$(docdir))/docs/'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(mandir))/man1'
 	$(INSTALL_DATA) '$(call SHESCAPE,$(BUILDDIR))/man/man1/limine.1' '$(call SHESCAPE,$(DESTDIR)$(mandir))/man1/'
 	$(INSTALL) -d '$(call SHESCAPE,$(DESTDIR)$(datarootdir))'
@@ -184,6 +188,7 @@ uninstall:
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/CONFIG.md'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/FAQ.md'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(docdir))/USAGE.md'
+	rm -rf '$(call SHESCAPE,$(DESTDIR)$(docdir))/docs'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(mandir))/man1/limine.1'
 	rm -f '$(call SHESCAPE,$(DESTDIR)$(bindir))/limine'
 	rm -rf '$(call SHESCAPE,$(DESTDIR)$(datarootdir))/limine'
@@ -294,49 +299,17 @@ limine-uefi-riscv64-clean: common-uefi-riscv64-clean
 .PHONY: limine-uefi-loongarch64-clean
 limine-uefi-loongarch64-clean: common-uefi-loongarch64-clean
 
+.PHONY: theme
+theme:
+	python3 '$(call SHESCAPE,$(SRCDIR))/tools/build-theme.py' --output '$(call SHESCAPE,$(BUILDDIR))/theme/eucleia.eui'
+
 .PHONY: dist
 dist:
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"
-	$(MKDIR_P) '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"
-	cp -r '$(call SHESCAPE,$(SRCDIR))'/.git '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"/
-	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && git checkout .
-	cd '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)" && ./bootstrap
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/contrib"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.gitignore"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/flanterm/.github"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/freestanding-c-hdrs/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/limine-protocol/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/picoefi/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/picoefi/.gitignore"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/cc-runtime"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/libfdt/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/stbi-hardened"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/pdgzip"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.git"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.gitignore"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/.github"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/README.md"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/DCO"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/CONTRIBUTING.md"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/AGENTS.md"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/CLAUDE.md"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/autom4te.cache"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/test"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/test.mk"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/logo.png"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/screenshot.png"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/bochsrc"
-	echo "$(PACKAGE_VERSION)" > '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)/version"
-	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" ! -type d -perm -100 -exec chmod 755 '{}' +
-	cd '$(call SHESCAPE,$(BUILDDIR))' && find "$(DIST_OUTPUT)" ! -type d ! -perm -100 -exec chmod 644 '{}' +
-	cd '$(call SHESCAPE,$(BUILDDIR))' && TZ=UTC0 find "$(DIST_OUTPUT)" -exec touch -t $(SOURCE_DATE_EPOCH_TOUCH) '{}' +
-	cd '$(call SHESCAPE,$(BUILDDIR))' && tar -cf "$(DIST_OUTPUT).tar" $$(find "$(DIST_OUTPUT)" ! -type d | LC_ALL=C sort)
-	cd '$(call SHESCAPE,$(BUILDDIR))' && gzip -n < "$(DIST_OUTPUT).tar" > "$(DIST_OUTPUT).tar.gz"
-	cd '$(call SHESCAPE,$(BUILDDIR))' && ( bzip2 < "$(DIST_OUTPUT).tar" > "$(DIST_OUTPUT).tar.bz2" || rm -f "$(DIST_OUTPUT).tar.bz2" )
-	cd '$(call SHESCAPE,$(BUILDDIR))' && ( xz < "$(DIST_OUTPUT).tar" > "$(DIST_OUTPUT).tar.xz" || rm -f "$(DIST_OUTPUT).tar.xz" )
-	cd '$(call SHESCAPE,$(BUILDDIR))' && rm "$(DIST_OUTPUT).tar"
-	rm -rf '$(call SHESCAPE,$(BUILDDIR))'/"$(DIST_OUTPUT)"
+	python3 '$(call SHESCAPE,$(SRCDIR))/tools/package.py' source --build '$(call SHESCAPE,$(BUILDDIR))' --version '$(PACKAGE_VERSION)' --epoch '$(SOURCE_DATE_EPOCH)'
+
+.PHONY: dist-binary
+dist-binary: all theme
+	python3 '$(call SHESCAPE,$(SRCDIR))/tools/package.py' binary --build '$(call SHESCAPE,$(BUILDDIR))' --version '$(PACKAGE_VERSION)' --epoch '$(SOURCE_DATE_EPOCH)'
 
 .PHONY: distclean
 distclean: clean
@@ -344,7 +317,7 @@ distclean: clean
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
-	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf flanterm stbi-hardened common/lib/stb_image.h pdgzip common/compress/pdgzip.c common/compress/pdgzip.h libfdt freestanding-c-hdrs cc-runtime common/cc-runtime.s2.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
+	cd '$(call SHESCAPE,$(SRCDIR))' && rm -rf freetype flanterm stbi-hardened common/lib/stb_image.h pdgzip common/compress/pdgzip.c common/compress/pdgzip.h libfdt freestanding-c-hdrs cc-runtime common/cc-runtime.s2.c limine-protocol picoefi configure timestamps build-aux *'~' autom4te.cache aclocal.m4 *.tar*
 
 .PHONY: common-uefi-x86-64
 common-uefi-x86-64:

@@ -4,6 +4,8 @@
 #include <stdnoreturn.h>
 #include <config.h>
 #include <menu.h>
+#include <menu_model.h>
+#include <menu_renderer.h>
 #include <lib/bli.h>
 #include <lib/print.h>
 #include <lib/misc.h>
@@ -44,7 +46,6 @@ EFI_GUID limine_efi_vendor_guid =
 #define TIMEOUT_MAX_MS (UINT64_C(9999) * 1000)
 
 static char interface_help_colour[24] = "\e[38;2;0;170;0m";
-static char interface_help_colour_bright[24] = "\e[38;2;85;255;85m";
 static char menu_branding_colour[24] = "\e[38;2;0;170;170m";
 
 static char *menu_branding = NULL;
@@ -60,36 +61,6 @@ static void keyboard_layout_init(void) {
     } else {
         current_keyboard_layout = KEYBOARD_LAYOUT_QWERTY;
     }
-}
-
-static char *append_uint_dec(char *p, uint64_t val) {
-    char buf[20];
-    size_t i = 0;
-
-    do {
-        buf[i++] = '0' + (val % 10);
-        val /= 10;
-    } while (val != 0);
-
-    while (i != 0) {
-        *p++ = buf[--i];
-    }
-    *p = '\0';
-    return p;
-}
-
-static char *write_uint8_dec(char *p, uint8_t v) {
-    if (v >= 100) {
-        *p++ = '0' + v / 100;
-        *p++ = '0' + (v / 10) % 10;
-        *p++ = '0' + v % 10;
-    } else if (v >= 10) {
-        *p++ = '0' + v / 10;
-        *p++ = '0' + v % 10;
-    } else {
-        *p++ = '0' + v;
-    }
-    return p;
 }
 
 static uint64_t parse_timeout_ms(const char *str) {
@@ -134,111 +105,6 @@ static uint64_t parse_timeout_ms(const char *str) {
     }
 
     return seconds * 1000 + milliseconds;
-}
-
-static size_t format_timeout_ms(char *buf, uint64_t milliseconds) {
-    char *p = append_uint_dec(buf, milliseconds / 1000);
-    uint64_t subsecond = milliseconds % 1000;
-
-    if (subsecond != 0) {
-        char *last;
-
-        *p++ = '.';
-        *p++ = '0' + subsecond / 100;
-        *p++ = '0' + (subsecond / 10) % 10;
-        *p++ = '0' + subsecond % 10;
-
-        last = p - 1;
-        while (*last == '0') {
-            last--;
-        }
-        p = last + 1;
-    }
-
-    *p = '\0';
-    return p - buf;
-}
-
-static void format_fg_rgb_escape(char *buf, uint32_t rgb) {
-    char *p = buf;
-    *p++ = '\e'; *p++ = '['; *p++ = '3'; *p++ = '8'; *p++ = ';';
-    *p++ = '2'; *p++ = ';';
-    p = write_uint8_dec(p, (rgb >> 16) & 0xff);
-    *p++ = ';';
-    p = write_uint8_dec(p, (rgb >> 8) & 0xff);
-    *p++ = ';';
-    p = write_uint8_dec(p, rgb & 0xff);
-    *p++ = 'm';
-    *p = '\0';
-}
-
-static size_t help_action_len(const char *label) {
-    return 2 + strlen(label);
-}
-
-static void add_help_action_len(size_t *len, size_t *count, const char *label) {
-    *len += help_action_len(label);
-    if ((*count)++ != 0) {
-        *len += 4;
-    }
-}
-
-static void print_help_action(const char *key, const char *label, bool *need_separator) {
-    if (*need_separator) {
-        print("    ");
-    }
-    *need_separator = true;
-    print("%s%s\e[0m %s", interface_help_colour, key, label);
-}
-
-static void print_secondary_help(size_t row, bool firmware_setup, bool uefi_shell, bool blank_entry) {
-    const char *firmware_setup_label = "Firmware Setup";
-    const char *uefi_shell_label = "UEFI Shell";
-    const char *blank_entry_label = "Blank Entry";
-
-    size_t len = 0;
-    size_t count = 0;
-
-    if (firmware_setup) {
-        add_help_action_len(&len, &count, firmware_setup_label);
-    }
-    if (uefi_shell) {
-        add_help_action_len(&len, &count, uefi_shell_label);
-    }
-    if (blank_entry) {
-        add_help_action_len(&len, &count, blank_entry_label);
-    }
-
-    if (len > terms[0]->cols) {
-        firmware_setup_label = "Setup";
-        uefi_shell_label = "Shell";
-        blank_entry_label = "Blank";
-
-        len = 0;
-        count = 0;
-        if (firmware_setup) {
-            add_help_action_len(&len, &count, firmware_setup_label);
-        }
-        if (uefi_shell) {
-            add_help_action_len(&len, &count, uefi_shell_label);
-        }
-        if (blank_entry) {
-            add_help_action_len(&len, &count, blank_entry_label);
-        }
-    }
-
-    set_cursor_pos_helper((terms[0]->cols > len) ? (terms[0]->cols - len) / 2 : 0, row);
-
-    bool need_separator = false;
-    if (firmware_setup) {
-        print_help_action("S", firmware_setup_label, &need_separator);
-    }
-    if (uefi_shell) {
-        print_help_action("U", uefi_shell_label, &need_separator);
-    }
-    if (blank_entry) {
-        print_help_action("B", blank_entry_label, &need_separator);
-    }
 }
 
 static bool parse_rgb_colour_value(const char *str, uint32_t *out) {
@@ -475,7 +341,6 @@ char *config_entry_editor(const char *title, const char *orig_entry) {
     size_t *cell_map = ext_mem_alloc(cell_map_size);
 
 refresh:
-    mouse_erase_pointer();
     memset(cell_map, 0xff, cell_map_size);
     print("\e[2J\e[H");
     FOR_TERM(TERM->cursor_enabled = false);
@@ -918,23 +783,6 @@ static inline bool should_skip_entry(struct menu_entry *entry) {
     return false;
 }
 
-// Count visible (non-skipped) entries in a subtree, respecting expansion state.
-static size_t count_visible_entries(struct menu_entry *entry) {
-    size_t count = 0;
-    while (entry != NULL) {
-        if (should_skip_entry(entry)) {
-            entry = entry->next;
-            continue;
-        }
-        count++;
-        if (entry->sub && entry->expanded) {
-            count += count_visible_entries(entry->sub);
-        }
-        entry = entry->next;
-    }
-    return count;
-}
-
 #if defined(UEFI)
 // Count same-named non-skipped siblings preceding this entry (for #N suffix).
 static size_t get_sibling_dup_index(struct menu_entry *entry) {
@@ -1256,7 +1104,7 @@ static bool find_entry_by_path(const char *path, struct menu_entry *current_entr
 
         idx++;
         if (current_entry->sub && current_entry->expanded) {
-            idx += count_visible_entries(current_entry->sub);
+            idx += menu_model_count(current_entry->sub, should_skip_entry);
         }
 
         current_entry = current_entry->next;
@@ -1285,107 +1133,6 @@ static void find_entry_by_bli_id_or_path(const char *str,
     find_entry_by_path(str, menu_tree, 0, found_entry, found_index, true);
 }
 #endif
-
-static size_t print_tree(size_t offset, size_t window, const char *shift, size_t level, size_t base_index, size_t selected_entry,
-                      struct menu_entry *current_entry,
-                      struct menu_entry **selected_menu_entry,
-                      size_t *max_len, size_t *max_height) {
-    size_t max_entries = 0;
-
-    bool no_print = false;
-    size_t dummy_max_len = 0;
-    if (max_len == NULL) {
-        max_len = &dummy_max_len;
-    }
-    size_t dummy_max_height = 0;
-    if (max_height == NULL) {
-        max_height = &dummy_max_height;
-    }
-    if (!level) {
-        *max_len = 0;
-        *max_height = 0;
-    }
-    if (shift == NULL) {
-        no_print = true;
-    }
-
-    for (;;) {
-        size_t cur_len = 0;
-        if (current_entry == NULL)
-            break;
-        if (should_skip_entry(current_entry)) {
-            current_entry = current_entry->next;
-            continue;
-        }
-        if (!no_print && base_index + max_entries < offset) {
-            goto skip_line;
-        }
-        if (!no_print && base_index + max_entries >= offset + window) {
-            goto skip_line;
-        }
-        if (!no_print) print("%s", shift);
-        if (level) {
-            for (size_t i = level - 1; i > 0; i--) {
-                struct menu_entry *actual_parent = current_entry;
-                for (size_t j = 0; j < i; j++)
-                    actual_parent = actual_parent->parent;
-                if (actual_parent->next != NULL) {
-                    if (!no_print) print(SERIAL_CONSOLE ? " |" : " │");
-                } else {
-                    if (!no_print) print("  ");
-                }
-                cur_len += 2;
-            }
-            if (current_entry->next == NULL) {
-                if (!no_print) print(SERIAL_CONSOLE ? " `" : " └");
-            } else {
-                if (!no_print) print(SERIAL_CONSOLE ? " |" : " ├");
-            }
-            cur_len += 2;
-        }
-        if (current_entry->sub) {
-            if (!no_print) print(current_entry->expanded ? "[-]" : "[+]");
-        } else if (level) {
-            if (!no_print) print(SERIAL_CONSOLE ? "-->" : "──►");
-        } else {
-            if (!no_print) print("   ");
-        }
-        cur_len += 3;
-        if (base_index + max_entries == selected_entry) {
-            *selected_menu_entry = current_entry;
-            if (!no_print) print("\e[7m");
-        }
-        {
-            size_t name_len = strlen(current_entry->name);
-            if (!no_print) {
-                size_t prefix_len = shift ? strlen(shift) : 0;
-                size_t used = prefix_len + cur_len + 1 + 1; // shift + decorations + space before + space after
-                size_t max_name = (terms[0]->cols > used) ? terms[0]->cols - used : 0;
-                if (name_len > max_name && max_name > 3) {
-                    print(" %S...\e[27m\n", current_entry->name, (size_t)(max_name - 3));
-                } else {
-                    print(" %s \e[27m\n", current_entry->name);
-                }
-            }
-            (*max_height)++;
-            cur_len += 1 + name_len + 1;
-        }
-skip_line:
-        if (current_entry->sub && current_entry->expanded) {
-            max_entries += print_tree(offset, window, shift, level + 1, base_index + max_entries + 1,
-                                      selected_entry,
-                                      current_entry->sub,
-                                      selected_menu_entry,
-                                      max_len, max_height);
-        }
-        max_entries++;
-        current_entry = current_entry->next;
-        if (cur_len > *max_len) {
-            *max_len = cur_len;
-        }
-    }
-    return max_entries;
-}
 
 static struct memmap_entry *rewound_memmap = NULL;
 static size_t rewound_memmap_entries = 0;
@@ -1449,6 +1196,22 @@ static void menu_init_term(void) {
 
 #if defined(UEFI)
 static struct volume *uefi_shell_volume = NULL;
+
+static char *append_uint_dec(char *p, uint64_t val) {
+    char buf[20];
+    size_t i = 0;
+
+    do {
+        buf[i++] = '0' + (val % 10);
+        val /= 10;
+    } while (val != 0);
+
+    while (i != 0) {
+        *p++ = buf[--i];
+    }
+    *p = '\0';
+    return p;
+}
 
 static char *append_string(char *p, const char *s) {
     while (*s != '\0') {
@@ -1558,39 +1321,6 @@ not_found:;
     panic(true, "Failed to reboot to firmware UI");
 }
 #endif
-
-// Map a terminal row to the visible index of the menu entry printed on it.
-static bool row_to_entry_index(size_t row, size_t tree_row_start, size_t window,
-                               size_t tree_offset, size_t max_entries, size_t *index) {
-    if (row < tree_row_start || row >= tree_row_start + window) {
-        return false;
-    }
-    size_t idx = tree_offset + (row - tree_row_start);
-    if (idx >= max_entries) {
-        return false;
-    }
-    *index = idx;
-    return true;
-}
-
-static void print_entry_comment(const struct menu_entry *entry, size_t row) {
-    if (entry->comment == NULL) {
-        return;
-    }
-
-    size_t comment_len = strlen(entry->comment);
-    size_t max_len = terms[0]->cols - 2;
-    FOR_TERM(TERM->scroll_enabled = false);
-    if (comment_len <= max_len) {
-        set_cursor_pos_helper((terms[0]->cols - comment_len) / 2, row);
-        print("\e[36m%s\e[0m", entry->comment);
-    } else {
-        size_t keep = max_len > 3 ? max_len - 3 : 0;
-        set_cursor_pos_helper(1, row);
-        print("\e[36m%S...\e[0m", entry->comment, keep);
-    }
-    FOR_TERM(TERM->scroll_enabled = true);
-}
 
 noreturn void _menu(bool first_run) {
     size_t data_size = (uintptr_t)data_end - (uintptr_t)data_begin;
@@ -1757,7 +1487,7 @@ noreturn void _menu(bool first_run) {
     if (interface_help_colour_str != NULL) {
         parse_rgb_colour_value(interface_help_colour_str, &help_rgb);
     }
-    format_fg_rgb_escape(interface_help_colour, help_rgb);
+    term_format_fg_rgb_escape(interface_help_colour, help_rgb);
 
     uint32_t help_bright_rgb = brighten_rgb(help_rgb);
     char *interface_help_colour_bright_str = config_get_value(NULL, 0, "INTERFACE_HELP_COLOUR_BRIGHT");
@@ -1767,7 +1497,6 @@ noreturn void _menu(bool first_run) {
     if (interface_help_colour_bright_str != NULL) {
         parse_rgb_colour_value(interface_help_colour_bright_str, &help_bright_rgb);
     }
-    format_fg_rgb_escape(interface_help_colour_bright, help_bright_rgb);
 
     bool custom_branding = false;
     {
@@ -1823,6 +1552,7 @@ noreturn void _menu(bool first_run) {
         memcpy(menu_branding + old_len - 1, suffix, suffix_len);
     }
 
+    uint32_t branding_rgb = 0x00aaaa;
     {
         char *tmp = config_get_value(NULL, 0, "INTERFACE_BRANDING_COLOUR");
         if (tmp == NULL)
@@ -1830,12 +1560,14 @@ noreturn void _menu(bool first_run) {
         if (tmp != NULL) {
             uint32_t rgb;
             if (parse_rgb_colour_value(tmp, &rgb)) {
-                format_fg_rgb_escape(menu_branding_colour, rgb);
+                branding_rgb = rgb;
+                term_format_fg_rgb_escape(menu_branding_colour, rgb);
             }
         }
     }
 
     bool skip_timeout = false;
+    const struct menu_renderer *renderer = NULL;
     struct menu_entry *selected_menu_entry = NULL;
 
     size_t selected_entry = 0;
@@ -1946,9 +1678,10 @@ noreturn void _menu(bool first_run) {
     }
 #endif
 
-    // Use print tree to load up selected_menu_entry and determine if the
-    // default entry is valid.
-    size_t max_entries = print_tree(0, 0, NULL, 0, 0, selected_entry, menu_tree, &selected_menu_entry, NULL, NULL);
+    struct menu_model model = {0};
+    menu_model_update(&model, menu_tree, should_skip_entry);
+    size_t max_entries = model.count;
+    selected_menu_entry = menu_model_entry(&model, selected_entry);
     if (selected_entry >= max_entries) {
         selected_entry = 0;
     }
@@ -2012,164 +1745,55 @@ noreturn void _menu(bool first_run) {
         mouse_init();
     }
 
-    size_t tree_offset = 0;
-    size_t tree_row_start = 0;
-    size_t header_offset = (menu_branding[0] != '\0') ? 2 : 0;
-    bool has_secondary_help = editor_enabled;
-#if defined(UEFI)
-    has_secondary_help = has_secondary_help || reboot_to_firmware_supported || uefi_shell_supported;
+    struct menu_style style = {
+        .notice = menu_gui_notice(),
+        .branding = menu_branding,
+        .branding_colour = branding_rgb,
+        .help_colour = help_rgb,
+        .help_colour_bright = help_bright_rgb,
+        .help_hidden = help_hidden,
+        .editor_enabled = editor_enabled,
+#if defined (UEFI)
+        .firmware_setup = reboot_to_firmware_supported,
+        .uefi_shell = uefi_shell_supported,
 #endif
-    if (has_secondary_help) {
-        header_offset += 2;
-    }
+    };
+    const struct menu_renderer *preferred_renderer = &menu_gui_renderer;
+    renderer = menu_renderer_start(preferred_renderer, &style);
 
 refresh:
     mouse_erase_pointer();
-
-    if (selected_entry >= tree_offset + terms[0]->rows - 8 - header_offset) {
-        tree_offset = selected_entry - (terms[0]->rows - 9 - header_offset);
+    menu_model_update(&model, menu_tree, should_skip_entry);
+    max_entries = model.count;
+    if (selected_entry >= max_entries) {
+        selected_entry = 0;
     }
-    if (selected_entry < tree_offset) {
-        tree_offset = selected_entry;
-    }
-
-    FOR_TERM(TERM->autoflush = false);
-
-    FOR_TERM(TERM->cursor_enabled = false);
-
-    print("\e[2J\e[H");
-    {
-        size_t x, y;
-        print("\n");
-        if (menu_branding[0] != '\0') {
-            terms[0]->get_cursor_pos(terms[0], &x, &y);
-            {
-                size_t branding_len = strlen(menu_branding);
-                size_t max_len = terms[0]->cols - 2;
-                if (branding_len <= max_len) {
-                    set_cursor_pos_helper((terms[0]->cols - branding_len) / 2, y);
-                    print("%s%s\e[0m", menu_branding_colour, menu_branding);
-                } else {
-                    size_t keep = max_len > 3 ? max_len - 3 : 0;
-                    set_cursor_pos_helper(1, y);
-                    print("%s%S...\e[0m", menu_branding_colour, menu_branding, keep);
-                }
-            }
-            print("\n\n\n\n");
-        }
-    }
-
-    if (max_entries == 0) {
-        if (quiet) {
-            quiet = false;
-            menu_init_term();
-        }
-        const char *msg;
-        if (config_ready) {
-            msg = "[config file contains no valid entries]";
-        } else {
-            msg = "[config file not found]";
-        }
-        set_cursor_pos_helper((terms[0]->cols - strlen(msg)) / 2, (terms[0]->rows - 1) / 2);
-        print("%s\n", msg);
-    }
-
-    size_t max_tree_len, max_tree_height;
-    max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, NULL, 0, 0, selected_entry, menu_tree,
-                             &selected_menu_entry, &max_tree_len, &max_tree_height);
-
-    if (max_entries != 0) {
-        size_t tree_prefix_len = (terms[0]->cols > max_tree_len + 3) ? (terms[0]->cols - max_tree_len - 3) / 2 : 1;
-        char *tree_prefix = ext_mem_alloc(tree_prefix_len + 1);
-        memset(tree_prefix, ' ', tree_prefix_len);
-
-        if (max_tree_height > terms[0]->rows - 8 - header_offset) {
-            max_tree_height = terms[0]->rows - 8 - header_offset;
-        }
-
-        size_t tree_start = (terms[0]->rows - max_tree_height) / 2;
-        if (tree_start < 4 + header_offset) {
-            tree_start = 4 + header_offset;
-        }
-        tree_row_start = tree_start;
-        set_cursor_pos_helper(0, tree_start);
-
-        max_entries = print_tree(tree_offset, terms[0]->rows - 8 - header_offset, tree_prefix, 0, 0, selected_entry, menu_tree,
-                                 &selected_menu_entry, NULL, NULL);
-
-        pmm_free(tree_prefix, tree_prefix_len + 1);
-    }
-
-    {
-        size_t x, y;
-        terms[0]->get_cursor_pos(terms[0], &x, &y);
-
-        if (max_entries != 0) {
-            if (tree_offset > 0) {
-                set_cursor_pos_helper((terms[0]->cols - 3) / 2, 3 + header_offset);
-                print(SERIAL_CONSOLE ? "^^^" : "↑↑↑");
-            }
-
-            if (tree_offset + (terms[0]->rows - 8 - header_offset) < max_entries) {
-                set_cursor_pos_helper((terms[0]->cols - 3) / 2, terms[0]->rows - 4);
-                print(SERIAL_CONSOLE ? "vvv" : "↓↓↓");
-            }
-        }
-
-        if (!help_hidden) {
-            if (max_entries != 0) {
-                size_t primary_row = 1 + header_offset - (has_secondary_help ? 2 : 0);
-                if (selected_menu_entry->sub == NULL) {
-                    if (editor_enabled) {
-                        set_cursor_pos_helper((terms[0]->cols - 37) / 2, primary_row);
-                        print("%sARROWS\e[0m Select    %sENTER\e[0m Boot    %sE\e[0m Edit",
-                              interface_help_colour, interface_help_colour, interface_help_colour);
-                    } else {
-                        set_cursor_pos_helper((terms[0]->cols - 27) / 2, primary_row);
-                        print("%sARROWS\e[0m Select    %sENTER\e[0m Boot",
-                              interface_help_colour, interface_help_colour);
-                    }
-                } else {
-                    const char *action = selected_menu_entry->expanded ? "Collapse" : "Expand";
-                    size_t len = 23 + strlen(action);
-                    set_cursor_pos_helper((terms[0]->cols - len) / 2, primary_row);
-                    print("%sARROWS\e[0m Select    %sENTER\e[0m %s",
-                          interface_help_colour, interface_help_colour, action);
-                }
-            }
-            if (has_secondary_help) {
-                size_t secondary_row = 1 + header_offset;
-#if defined(UEFI)
-                print_secondary_help(secondary_row, reboot_to_firmware_supported, uefi_shell_supported, editor_enabled);
-#else
-                print_secondary_help(secondary_row, false, false, editor_enabled);
-#endif
-            }
-        }
-        set_cursor_pos_helper(x, y);
-    }
-
-    if (max_entries == 0 || selected_menu_entry->sub != NULL)
+    selected_menu_entry = menu_model_entry(&model, selected_entry);
+    if (max_entries == 0 || selected_menu_entry->sub != NULL) {
         skip_timeout = true;
+    }
+    if (max_entries == 0 && quiet) {
+        quiet = false;
+        menu_init_term();
+        mouse_init();
+        renderer = menu_renderer_start(preferred_renderer, &style);
+    }
+    struct menu_view view = {
+        .rows = model.rows,
+        .count = model.count,
+        .selected = selected_entry,
+        .comment = selected_menu_entry == NULL ? NULL : selected_menu_entry->comment,
+        .config_ready = config_ready,
+        .countdown = !skip_timeout
+    };
+    renderer->draw(&view);
 
     int c;
 
     if (skip_timeout == false) {
-        print("\n\n");
-        print_entry_comment(selected_menu_entry, terms[0]->rows - 3);
         while (timeout_ms != 0) {
-            char timeout_buf[24];
             uint64_t sleep_ms = timeout_ms % 1000;
-            size_t timeout_len = format_timeout_ms(timeout_buf, timeout_ms);
-            size_t msg_len = 28 + timeout_len;
-            mouse_erase_pointer();
-            set_cursor_pos_helper((terms[0]->cols - msg_len) / 2, terms[0]->rows - 2);
-            FOR_TERM(TERM->scroll_enabled = false);
-            print("\e[2K%sBooting automatically in %s%s%s...\e[0m",
-                  interface_help_colour, interface_help_colour_bright, timeout_buf, interface_help_colour);
-            FOR_TERM(TERM->scroll_enabled = true);
-            FOR_TERM(TERM->double_buffer_flush(TERM));
-            mouse_render_pointer();
+            renderer->timeout(timeout_ms);
 
             if (sleep_ms == 0) {
                 sleep_ms = 1000;
@@ -2181,20 +1805,18 @@ refresh:
                     quiet = false;
                     menu_init_term();
                     mouse_init();
+                    renderer = menu_renderer_start(preferred_renderer, &style);
+                    view.countdown = false;
+                    renderer->draw(&view);
+                    renderer->present();
                     goto timeout_aborted;
                 }
-                mouse_erase_pointer();
-                print("\e[2K");
-                FOR_TERM(TERM->double_buffer_flush(TERM));
+                renderer->timeout(0);
                 goto timeout_aborted;
             }
             timeout_ms -= sleep_ms;
         }
         goto autoboot;
-    }
-
-    if (max_entries != 0) {
-        print_entry_comment(selected_menu_entry, terms[0]->rows - 2);
     }
 
     if (booting_from_editor) {
@@ -2204,8 +1826,7 @@ refresh:
         goto editor;
     }
 
-    FOR_TERM(TERM->double_buffer_flush(TERM));
-    mouse_render_pointer();
+    renderer->present();
 
     for (;;) {
         c = pit_sleep_ms_and_quit_on_input((uint64_t)65535 * 1000);
@@ -2220,7 +1841,7 @@ timeout_aborted:
                 case GETCHAR_MOUSE: {
                     struct mouse_state mouse;
                     mouse_get_state(&mouse);
-                    mouse_render_pointer();
+                    renderer->present();
                     continue;
                 }
                 default:
@@ -2234,8 +1855,7 @@ timeout_aborted:
                 int ent = (c - '0') - 1;
                 if (ent < (int)max_entries) {
                     selected_entry = ent;
-                    print_tree(0, 0, NULL, 0, 0, selected_entry, menu_tree,
-                               &selected_menu_entry, NULL, NULL);
+                    selected_menu_entry = menu_model_entry(&model, selected_entry);
                     goto autoboot;
                 }
                 goto refresh;
@@ -2260,8 +1880,6 @@ timeout_aborted:
                 struct mouse_state mouse;
                 mouse_get_state(&mouse);
 
-                size_t window = terms[0]->rows - 8 - header_offset;
-
                 if (mouse.wheel != 0) {
                     if (mouse.wheel < 0) {
                         size_t steps = -mouse.wheel;
@@ -2275,26 +1893,25 @@ timeout_aborted:
                     goto refresh;
                 }
 
-                size_t target;
+                size_t target, pressed_target;
 
                 if (mouse.click
-                 && row_to_entry_index(mouse.click_y, tree_row_start, window,
-                                       tree_offset, max_entries, &target)) {
+                 && renderer->hit_test(mouse.click_x, mouse.click_y, &target)
+                 && renderer->hit_test(mouse.press_x, mouse.press_y, &pressed_target)
+                 && target == pressed_target) {
                     selected_entry = target;
-                    print_tree(0, 0, NULL, 0, 0, selected_entry, menu_tree,
-                               &selected_menu_entry, NULL, NULL);
+                    selected_menu_entry = menu_model_entry(&model, selected_entry);
                     goto autoboot;
                 }
 
                 if (mouse.moved
-                 && row_to_entry_index(mouse.y, tree_row_start, window,
-                                       tree_offset, max_entries, &target)
+                 && renderer->hit_test(mouse.x, mouse.y, &target)
                  && target != selected_entry) {
                     selected_entry = target;
                     goto refresh;
                 }
 
-                mouse_render_pointer();
+                renderer->present();
                 break;
             }
             case GETCHAR_CURSOR_RIGHT:
@@ -2307,6 +1924,9 @@ timeout_aborted:
                 if (selected_menu_entry->sub != NULL) {
                     selected_menu_entry->expanded = !selected_menu_entry->expanded;
                     goto refresh;
+                }
+                if (renderer != NULL) {
+                    renderer->leave();
                 }
                 mouse_erase_pointer();
                 if (!quiet) {
@@ -2349,7 +1969,7 @@ timeout_aborted:
                         break;
                     }
                     editor_no_term_reset = true;
-                    mouse_erase_pointer();
+                    renderer->leave();
                     char *new_body = config_entry_editor(selected_menu_entry->name, selected_menu_entry->body);
                     // Drop half-delivered mouse input left over from the editor.
                     mouse_flush();
@@ -2364,6 +1984,7 @@ timeout_aborted:
             case 's':
             case 'S': {
                 if (reboot_to_firmware_supported) {
+                    renderer->leave();
                     reboot_to_fw_ui();
                 }
                 break;
@@ -2371,6 +1992,7 @@ timeout_aborted:
             case 'u':
             case 'U': {
                 if (uefi_shell_supported) {
+                    renderer->leave();
                     boot_uefi_shell();
                 }
                 break;
@@ -2381,7 +2003,7 @@ timeout_aborted:
                 if (editor_enabled) {
                     editor_blank:
                     booting_from_blank = true;
-                    mouse_erase_pointer();
+                    renderer->leave();
                     char *new_entry = config_entry_editor("Blank Entry", "");
                     if (new_entry != NULL) {
                         config_ready = true;

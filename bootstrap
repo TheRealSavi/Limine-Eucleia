@@ -81,6 +81,11 @@ if ! test -f version; then
         https://github.com/osdev0/libfdt.git \
         libfdt \
         7bf94e6347129d17eca263112296ad170dec28a9
+
+    clone_repo_commit \
+        https://github.com/freetype/freetype.git \
+        freetype \
+        0a0221a1347e2f1e07c395263540026e9a0aa7c7
 fi
 
 # Create timestamps file
